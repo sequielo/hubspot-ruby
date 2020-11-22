@@ -11,20 +11,25 @@ module Hubspot
     DEFAULT_BASE_URL = "https://api.hubapi.com".freeze
 
     class << self
-      attr_accessor *CONFIG_KEYS
+      CONFIG_KEYS.each do |key|
+        define_method(key) { Thread.current["hubspot_config_#{key}"] }
+        define_method("#{key}=") do |value|
+          Thread.current["hubspot_config_#{key}"] = value
+        end
+      end
 
       def configure(config)
         config.stringify_keys!
-        @hapikey = config["hapikey"]
-        @base_url = config["base_url"] || DEFAULT_BASE_URL
-        @portal_id = config["portal_id"]
-        @logger = config["logger"] || DEFAULT_LOGGER
-        @access_token = config["access_token"]
-        @client_id = config["client_id"] if config["client_id"].present?
-        @client_secret = config["client_secret"] if config["client_secret"].present?
-        @redirect_uri = config["redirect_uri"] if config["redirect_uri"].present?
-        @read_timeout = config['read_timeout'] || config['timeout']
-        @open_timeout = config['open_timeout'] || config['timeout']
+        self.hapikey = config["hapikey"]
+        self.base_url = config["base_url"] || DEFAULT_BASE_URL
+        self.portal_id = config["portal_id"]
+        self.logger = config["logger"] || DEFAULT_LOGGER
+        self.access_token = config["access_token"]
+        self.client_id = config["client_id"] if config["client_id"].present?
+        self.client_secret = config["client_secret"] if config["client_secret"].present?
+        self.redirect_uri = config["redirect_uri"] if config["redirect_uri"].present?
+        self.read_timeout = config['read_timeout'] || config['timeout']
+        self.open_timeout = config['open_timeout'] || config['timeout']
 
         unless authentication_uncertain?
           raise Hubspot::ConfigurationError.new("You must provide either an access_token or an hapikey")
@@ -37,17 +42,17 @@ module Hubspot
       end
 
       def reset!
-        @hapikey = nil
-        @base_url = DEFAULT_BASE_URL
-        @portal_id = nil
-        @logger = DEFAULT_LOGGER
-        @access_token = nil
+        self.hapikey = nil
+        self.base_url = DEFAULT_BASE_URL
+        self.portal_id = nil
+        self.logger = DEFAULT_LOGGER
+        self.access_token = nil
         Hubspot::Connection.headers({})
       end
 
       def ensure!(*params)
         params.each do |p|
-          raise Hubspot::ConfigurationError.new("'#{p}' not configured") unless instance_variable_get "@#{p}"
+          raise Hubspot::ConfigurationError.new("'#{p}' not configured") unless send(p)
         end
       end
 
