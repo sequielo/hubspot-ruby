@@ -22,6 +22,7 @@ require 'hubspot/engagement'
 require 'hubspot/subscription'
 require 'hubspot/oauth'
 require 'hubspot/file'
+require 'hubspot/association'
 
 module Hubspot
   def self.configure(config={})
