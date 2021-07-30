@@ -6,6 +6,8 @@ class Hubspot::Association
   CONTACT_TO_DEAL = 4
   DEAL_TO_COMPANY = 5
   COMPANY_TO_DEAL = 6
+  CONTACT_TO_ENGAGEMENT = 9
+  ENGAGEMENT_TO_CONTACT = 10
   PARENT_COMPANY_TO_CHILD_COMPANY = 13
   CHILD_COMPANY_TO_PARENT_COMPANY = 14
   DEFINITION_TARGET_TO_CLASS = {
@@ -14,7 +16,9 @@ class Hubspot::Association
     3 => Hubspot::Contact,
     4 => Hubspot::Deal,
     5 => Hubspot::Company,
-    6 => Hubspot::Deal
+    6 => Hubspot::Deal,
+    9 => Hubspot::Engagement,
+    10 => Hubspot::Contact,
   }.freeze
 
   BATCH_CREATE_PATH = '/crm-associations/v1/associations/create-batch'
@@ -56,19 +60,18 @@ class Hubspot::Association
     #   and M is the number of results, each resulting in a find
     # usage:
     # Hubspot::Association.all(42, Hubspot::Association::DEAL_TO_CONTACT)
-    def all(resource_id, definition_id)
+    def all(resource_id, definition_id, options={})
       opts = { resource_id: resource_id, definition_id: definition_id }
       klass = DEFINITION_TARGET_TO_CLASS[definition_id]
       raise(Hubspot::InvalidParams, 'Definition not supported') unless klass.present?
 
-      collection = Hubspot::PagedCollection.new(opts) do |options, offset, limit|
-        params = options.merge(offset: offset, limit: limit)
-        response = Hubspot::Connection.get_json(ASSOCIATIONS_PATH, params)
-
-        resources = response['results'].map { |result| klass.find(result) }
-        [resources, response['offset'], response['has-more']]
-      end
-      collection.resources
+      params = opts.merge( options.slice(:offset, :limit) )
+      response = Hubspot::Connection.get_json(ASSOCIATIONS_PATH, params)
+      result = {}
+      result['associations'] = response['results'].map { |result| klass.find(result) }
+      result['offset'] = response['offset']
+      result['hasMore'] = response['hasMore']
+      result
     end
 
     private

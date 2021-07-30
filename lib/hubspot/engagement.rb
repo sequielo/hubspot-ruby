@@ -7,30 +7,47 @@ module Hubspot
   # {http://developers.hubspot.com/docs/methods/engagements/create_engagement}
   #
   class Engagement
+    ALL_ENGAGEMENTS_PATH = '/engagements/v1/engagements/paged'
     CREATE_ENGAGMEMENT_PATH = '/engagements/v1/engagements'
     ENGAGEMENT_PATH = '/engagements/v1/engagements/:engagement_id'
     ASSOCIATE_ENGAGEMENT_PATH = '/engagements/v1/engagements/:engagement_id/associations/:object_type/:object_vid'
     GET_ASSOCIATED_ENGAGEMENTS = '/engagements/v1/engagements/associated/:objectType/:objectId/paged'
+ 
+    TYPES = %w[ EMAIL CALL MEETING TASK NOTE ]
 
     attr_reader :id
+    attr_reader :type
     attr_reader :engagement
     attr_reader :associations
     attr_reader :attachments
     attr_reader :metadata
 
     def initialize(response_hash)
-
       @engagement = response_hash["engagement"]
       @associations = response_hash["associations"]
       @attachments = response_hash["attachments"]
       @metadata = response_hash["metadata"]
       @id = engagement["id"]
+      @type = @engagement['type']
     end
 
     class << self
+
       def create!(params={})
         response = Hubspot::Connection.post_json(CREATE_ENGAGMEMENT_PATH, params: {}, body: params )
         new(HashWithIndifferentAccess.new(response))
+      end
+
+      def all(opts = {})
+        path = ALL_ENGAGEMENTS_PATH
+        type = ([opts.delete(:type)] & TYPES).first
+        response = Hubspot::Connection.get_json(path, opts)
+        result = {}
+        result['engagements'] = response['results'].map { |e| new(e) }
+        result['engagements'].select! { |e| e.type == type }  if type
+        result['offset'] = response['offset']
+        result['hasMore'] = response['hasMore']
+        result
       end
 
       def find(engagement_id)
@@ -46,17 +63,17 @@ module Hubspot
         end
       end
 
-      def find_by_company(company_id)
-        find_by_association company_id, 'COMPANY'
+      def find_by_company(company_id, opts={})
+        find_by_association company_id, 'COMPANY', opts
       end
 
-      def find_by_contact(contact_id)
-        find_by_association contact_id, 'CONTACT'
+      def find_by_contact(contact_id, opts={})
+        find_by_association contact_id, 'CONTACT', opts
       end
 
-      def find_by_association(association_id, association_type)
+      def find_by_association(association_id, association_type, opts={})
         path = GET_ASSOCIATED_ENGAGEMENTS
-        params = { objectType: association_type, objectId: association_id }
+        params = { objectType: association_type, objectId: association_id }.merge( opts.slice(:offset, :limit) )
         raise Hubspot::InvalidParams, 'expecting Integer parameter' unless association_id.try(:is_a?, Integer)
         raise Hubspot::InvalidParams, 'expecting String parameter' unless association_type.try(:is_a?, String)
 
@@ -67,7 +84,11 @@ module Hubspot
         rescue => e
           raise e unless e.message =~ /not found/
         end
-        engagements
+        {
+          engagements: engagements,
+          hasMore: response['hasMore'],
+          offset: response['offset']
+        }
       end
 
       # Associates an engagement with an object
@@ -97,8 +118,13 @@ module Hubspot
       !!@destroyed
     end
 
-    def [](property)
-      @properties[property]
+    def as_object
+      {
+        engagement: @engagement,
+        associations: @associations,
+        attachments: @attachments,
+        metadata: @metadata,
+      }
     end
 
     # Updates the properties of an engagement
