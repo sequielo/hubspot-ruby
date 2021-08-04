@@ -10,15 +10,12 @@ class Hubspot::Association
   ENGAGEMENT_TO_CONTACT = 10
   PARENT_COMPANY_TO_CHILD_COMPANY = 13
   CHILD_COMPANY_TO_PARENT_COMPANY = 14
+
   DEFINITION_TARGET_TO_CLASS = {
-    1 => Hubspot::Company,
-    2 => Hubspot::Contact,
-    3 => Hubspot::Contact,
-    4 => Hubspot::Deal,
-    5 => Hubspot::Company,
-    6 => Hubspot::Deal,
-    9 => Hubspot::Engagement,
-    10 => Hubspot::Contact,
+    Hubspot::Company    => [1, 5, 13, 14],
+    Hubspot::Contact    => [2, 3, 10],
+    Hubspot::Deal       => [4, 6],
+    Hubspot::Engagement => [9],
   }.freeze
 
   BATCH_CREATE_PATH = '/crm-associations/v1/associations/create-batch'
@@ -62,7 +59,7 @@ class Hubspot::Association
     # Hubspot::Association.all(42, Hubspot::Association::DEAL_TO_CONTACT)
     def all(resource_id, definition_id, options={})
       opts = { resource_id: resource_id, definition_id: definition_id }
-      klass = DEFINITION_TARGET_TO_CLASS[definition_id]
+      klass = DEFINITION_TARGET_TO_CLASS.find{ |k,v| definition_id.in?(v) ? k : nil }&.first
       raise(Hubspot::InvalidParams, 'Definition not supported') unless klass.present?
 
       params = opts.merge( options.slice(:offset, :limit) )
