@@ -2,6 +2,8 @@
 class Hubspot::Association
   CONTACT_TO_COMPANY = 1
   COMPANY_TO_CONTACT = 2
+  CONTACT_TO_COMPANY_V2 = 279
+  COMPANY_TO_CONTACT_V2 = 280
   DEAL_TO_CONTACT = 3
   CONTACT_TO_DEAL = 4
   DEAL_TO_COMPANY = 5
@@ -12,8 +14,8 @@ class Hubspot::Association
   CHILD_COMPANY_TO_PARENT_COMPANY = 14
 
   DEFINITION_TARGET_TO_CLASS = {
-    Hubspot::Company    => [1, 5, 13, 14],
-    Hubspot::Contact    => [2, 3, 10],
+    Hubspot::Company    => [1, 5, 13, 14, 279],
+    Hubspot::Contact    => [2, 3, 10, 280],
     Hubspot::Deal       => [4, 6],
     Hubspot::Engagement => [9],
   }.freeze
@@ -21,9 +23,13 @@ class Hubspot::Association
   BATCH_CREATE_PATH = '/crm-associations/v1/associations/create-batch'
   BATCH_DELETE_PATH = '/crm-associations/v1/associations/delete-batch'
   ASSOCIATIONS_PATH = '/crm-associations/v1/associations/:resource_id/HUBSPOT_DEFINED/:definition_id'
+  BATCH_CREATE_V2_PATH = '/crm/v3/associations/:fromObjectType/:toObjectType/batch/create'
+  BATCH_DELETE_V2_PATH = '/crm/v3/associations/:fromObjectType/:toObjectType/batch/archive'
+  TYPES_PATH = '/crm/v3/associations/:fromObjectType/:toObjectType/types'
 
   class << self
     def create(from_id, to_id, definition_id)
+      raise(Hubspot::InvalidParams, 'Definition not supported') if definition_id > 100
       batch_create([{ from_id: from_id, to_id: to_id, definition_id: definition_id }])
     end
 
@@ -34,6 +40,12 @@ class Hubspot::Association
     def batch_create(associations)
       request = associations.map { |assocation| build_association_body(assocation) }
       Hubspot::Connection.put_json(BATCH_CREATE_PATH, params: { no_parse: true }, body: request)
+    end
+    
+    # See: https://developers.hubspot.com/docs/api/crm/associations
+    def batch_create_v2(associations, from_type, to_type)
+      request = { inputs: associations.map { |assocation| build_association_body_v2(assocation) } }
+      Hubspot::Connection.post_json(BATCH_CREATE_V2_PATH, params: { fromObjectType: from_type, toObjectType: to_type }, body: request)
     end
 
     def delete(from_id, to_id, definition_id)
@@ -47,6 +59,12 @@ class Hubspot::Association
     def batch_delete(associations)
       request = associations.map { |assocation| build_association_body(assocation) }
       Hubspot::Connection.put_json(BATCH_DELETE_PATH, params: { no_parse: true }, body: request)
+    end
+
+    # See: https://developers.hubspot.com/docs/api/crm/associations
+    def batch_delete_v2(associations, from_type, to_type)
+      request = { inputs: associations.map { |assocation| build_association_body_v2(assocation) } }
+      Hubspot::Connection.post_json(BATCH_DELETE_V2_PATH, params: { fromObjectType: from_type, toObjectType: to_type }, body: request)
     end
 
     # Retrieve all associated resources given a source (resource_id) and a kind (definition_id)
@@ -63,12 +81,23 @@ class Hubspot::Association
       raise(Hubspot::InvalidParams, 'Definition not supported') unless klass.present?
 
       params = opts.merge( options.slice(:offset, :limit) )
+      dont_expand = options.fetch(:dont_expand, false)
       response = Hubspot::Connection.get_json(ASSOCIATIONS_PATH, params)
-      result = {}
-      result['associations'] = response['results'].map { |result| klass.find(result) }
-      result['offset'] = response['offset']
-      result['hasMore'] = response['hasMore']
-      result
+      unless dont_expand
+        result = {}
+        finder = klass.respond_to?(:find_by_id) ? :find_by_id : :find
+        result['associations'] = response['results'].map { |result| klass.send(finder, result) }
+        result['offset'] = response['offset']
+        result['hasMore'] = response['hasMore']
+        result
+      else
+        response
+      end
+    end
+
+    # See: https://developers.hubspot.com/docs/api/crm/associations
+    def types(from_type, to_type)
+      Hubspot::Connection.get_json(TYPES_PATH, {fromObjectType: from_type, toObjectType: to_type})
     end
 
     private
@@ -79,6 +108,14 @@ class Hubspot::Association
         toObjectId: assocation[:to_id],
         category: 'HUBSPOT_DEFINED',
         definitionId: assocation[:definition_id]
+      }
+    end
+
+    def build_association_body_v2(assocation)
+      {
+        from: { id: assocation[:from_id] },
+        to:   { id: assocation[:to_id] },
+        type: assocation[:type]
       }
     end
   end
