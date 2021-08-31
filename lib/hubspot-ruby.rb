@@ -23,6 +23,7 @@ require 'hubspot/subscription'
 require 'hubspot/oauth'
 require 'hubspot/file'
 require 'hubspot/association'
+require 'hubspot/transactional_email'
 
 module Hubspot
   def self.configure(config={})
