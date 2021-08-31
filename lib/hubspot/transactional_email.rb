@@ -1,5 +1,3 @@
-require 'hubspot/utils'
-
 module Hubspot
   #
   # HubSpot Transactional Email API
