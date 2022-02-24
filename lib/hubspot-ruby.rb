@@ -24,6 +24,7 @@ require 'hubspot/oauth'
 require 'hubspot/file'
 require 'hubspot/association'
 require 'hubspot/transactional_email'
+require 'hubspot/ticket'
 
 module Hubspot
   def self.configure(config={})
