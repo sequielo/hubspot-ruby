@@ -71,13 +71,13 @@ module Hubspot
       def generate_url(path, params={}, options={})
         if Hubspot::Config.access_token.present?
           options[:hapikey] = false
-        else
+        elsif !params.key?('hapikey')
           Hubspot::Config.ensure! :hapikey
         end
         path = path.clone
         params = params.clone
         base_url = options[:base_url] || Hubspot::Config.base_url
-        params["hapikey"] = Hubspot::Config.hapikey unless options[:hapikey] == false
+        params["hapikey"] ||= Hubspot::Config.hapikey unless options[:hapikey] == false
 
         if path =~ /:portal_id/
           Hubspot::Config.ensure! :portal_id
